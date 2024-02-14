@@ -1,0 +1,72 @@
+//@version=4
+// 定义一个名为"BB-Keltner Squeeze-FVBO-2.0"的研究，并将其叠加在主图上  
+study(title="BB-Keltner Squeeze-FVBO-2.0", overlay=true)  
+  
+// 输入参数设置  
+length = input(20, minval=1, title="长度")                  // 设置长度，最小值为1  
+src = input(close, title="数据源")                          // 设置数据源，默认为收盘价  
+
+var jiya = false
+var xinhao = false
+
+// 计算2倍标准差的布林带  
+B2mult = input(2.0, minval=0.001, maxval=50, title="布林带标准差倍数") // 布林带上下轨与均线的标准差倍数  
+B2basis = sma(src, length)                                  // 计算布林带的基础线（简单移动平均线）  
+B2dev = B2mult * stdev(src, length)                         // 计算布林带的标准差  
+B2upper = B2basis + B2dev                                   // 计算布林带的上轨  
+B2lower = B2basis - B2dev                                   // 计算布林带的下轨  
+  
+// 绘制布林带  
+plot(B2basis, color=#9c27b0, style=plot.style_cross, linewidth=2)                 // 绘制布林带基础线  
+p1 = plot(B2upper, color=#673ab7, linewidth=2, title="Band 2SD upper", style=plot.style_stepline) // 绘制布林带上轨  
+p2 = plot(B2lower, color=#673ab7, linewidth=2, title="Band 2SD lower", style=plot.style_stepline) // 绘制布林带下轨  
+  
+// 计算1.5倍凯尔特纳通道  
+useTrueRange = input(true)                                 // 是否使用真实波幅作为范围  
+Kmult = input(1.5, title="凯尔特纳范围倍数")                 // 凯尔特纳通道上下轨与均线的倍数  
+Kma = ema(src, length)                                      // 计算凯尔特纳通道的基础线（指数移动平均线）  
+Krange = useTrueRange ? tr : high - low                     // 使用真实波幅或最高价-最低价作为范围  
+Krangema = ema(Krange, length)                              // 计算凯尔特纳通道的范围均线  
+Kupper = Kma + Krangema * Kmult                             // 计算凯尔特纳通道的上轨  
+Klower = Kma - Krangema * Kmult                             // 计算凯尔特纳通道的下轨  
+  
+// 绘制凯尔特纳通道  
+plot(Kma, title ="凯尔特纳基础线", color=#2196f3, style=plot.style_line, linewidth=1) // 绘制凯尔特纳通道基础线  
+p5 = plot(Kupper, title="凯尔特纳上轨", color=#2196f3, linewidth=1, style=plot.style_line) // 绘制凯尔特纳通道上轨  
+p6 = plot(Klower, title="凯尔特纳下轨", color=#2196f3, linewidth=1, style=plot.style_line) // 绘制凯尔特纳通道下轨  
+fill(p5, p6, color=#2196f3, title = "凯尔特纳通道填充")     // 填充凯尔特纳通道区域  
+  
+// 突出显示布林带与凯尔特纳通道的交叉区域  
+bb_condition = input(defval = "Both", title="布林带交叉条件", type = input.string, options = ["Both", "At Least One"]) // 布林带交叉条件选择  
+  
+// 根据选择的条件确定交叉区域的颜色  
+cross_over_color = if bb_condition =="Both"  
+    cross_over_color = B2upper <= Kupper and B2lower >= Klower ? color.aqua : na  
+else  
+    cross_over_color = B2upper <= Kupper or B2lower >= Klower ? color.aqua : na  
+  
+// 设置背景颜色以标识交叉区域  
+bgcolor(color=cross_over_color, transp=90, title = "交叉识别颜色")  
+
+cross_over = if bb_condition =="Both"  
+    cross_over = B2upper <= Kupper and B2lower >= Klower ? true : false
+else  
+    cross_over = B2upper <= Kupper or B2lower >= Klower ? true : false  
+
+// 初始化信号触发变量
+if cross_over and not jiya
+    jiya := true
+
+  
+// 交易信号判断  
+short_condition = jiya and close > B2upper // 交叉且收盘价在布林带上轨之上
+long_condition = jiya and close < B2lower // 交叉且收盘价在布林带下轨之下  
+  
+  
+// 在图表上绘制交易信号标记  
+plotshape(series=short_condition, title="空头信号", location=location.belowbar, color=color.red, style=shape.labelup, text="SELL") // 在K线下方绘制红色“SELL”标记  
+plotshape(series=long_condition, title="多头信号", location=location.abovebar, color=color.green, style=shape.labeldown, text="BUY") // 在K线上方绘制绿色“BUY”标记  
+  
+// 设置警报条件  
+alert = B2upper <= Kupper and B2lower >= Klower ? true : false // 当布林带与凯尔特纳通道交叉时触发警报  
+alertcondition(alert, title= "BB-Kelt Squeeze", message= "BB Kelt Squeeze") // 当满足警报条件时，显示警报信息
